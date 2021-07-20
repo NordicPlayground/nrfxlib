@@ -42,17 +42,20 @@
 
 #include <stdint.h>
 
+#include "mac_features/nrf_802154_frame_parser.h"
+
 /** Initializes the ACK generator module. */
 void nrf_802154_ack_generator_init(void);
 
 /** Creates an ACK in response to the provided frame and inserts it into a radio buffer.
  *
- * @param [in]  p_frame  Pointer to the buffer that contains PHR and PSDU of the frame
- *                       to respond to.
+ * @param [in]  p_frame_data  Pointer to the parser data of the frame for which an Ack
+ *                            will be generated.
  *
  * @returns  Either pointer to a constant buffer that contains PHR and PSDU
  *           of the created ACK frame, or NULL in case of an invalid frame.
  */
-const uint8_t * nrf_802154_ack_generator_create(const uint8_t * p_frame);
+uint8_t * nrf_802154_ack_generator_create(
+    const nrf_802154_frame_parser_data_t * p_frame_data);
 
 #endif // NRF_802154_ACK_GENERATOR_H

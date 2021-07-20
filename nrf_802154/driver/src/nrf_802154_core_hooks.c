@@ -56,15 +56,18 @@
 #include "nrf_802154_types.h"
 
 typedef bool (* abort_hook)(nrf_802154_term_t term_lvl, req_originator_t req_orig);
-typedef bool (* pre_transmission_hook)(const uint8_t                           * p_frame,
+typedef bool (* pre_transmission_hook)(uint8_t                                 * p_frame,
                                        nrf_802154_transmit_params_t            * p_params,
                                        nrf_802154_transmit_failed_notification_t notify_function);
+typedef bool (* tx_setup_hook)(uint8_t                                 * p_frame,
+                               nrf_802154_transmit_params_t            * p_params,
+                               nrf_802154_transmit_failed_notification_t notify_function);
 typedef void (* transmitted_hook)(const uint8_t * p_frame);
-typedef bool (* tx_failed_hook)(const uint8_t * p_frame, nrf_802154_tx_error_t error);
-typedef bool (* tx_started_hook)(const uint8_t * p_frame);
+typedef bool (* tx_failed_hook)(uint8_t * p_frame, nrf_802154_tx_error_t error);
+typedef bool (* tx_started_hook)(uint8_t * p_frame);
 typedef void (* rx_started_hook)(const uint8_t * p_frame);
 typedef void (* rx_ack_started_hook)(void);
-typedef void (* tx_ack_started_hook)(const uint8_t * p_ack);
+typedef void (* tx_ack_started_hook)(uint8_t * p_ack);
 
 /* Since some compilers do not allow empty initializers for arrays with unspecified bounds,
  * NULL pointer is appended to below arrays if the compiler used is not GCC. It is intentionally
@@ -97,14 +100,19 @@ static const pre_transmission_hook m_pre_transmission_hooks[] =
 #if NRF_802154_IFS_ENABLED
     nrf_802154_ifs_pretransmission,
 #endif
+    NULL,
+};
+
+static const tx_setup_hook m_tx_setup_hooks[] =
+{
 #if NRF_802154_IE_WRITER_ENABLED
-    nrf_802154_ie_writer_pretransmission,
+    nrf_802154_ie_writer_tx_setup,
 #endif
 #if NRF_802154_SECURITY_WRITER_ENABLED
-    nrf_802154_security_writer_pretransmission,
+    nrf_802154_security_writer_tx_setup,
 #endif
 #if NRF_802154_ENCRYPTION_ENABLED
-    nrf_802154_encrypt_pretransmission,
+    nrf_802154_encrypt_tx_setup,
 #endif
     NULL,
 };
@@ -141,6 +149,10 @@ static const tx_started_hook m_tx_started_hooks[] =
 
 #if NRF_802154_ACK_TIMEOUT_ENABLED
     nrf_802154_ack_timeout_tx_started_hook,
+#endif
+
+#if NRF_802154_SECURITY_WRITER_ENABLED
+    nrf_802154_security_writer_tx_started_hook,
 #endif
 
 #if NRF_802154_IE_WRITER_ENABLED
@@ -208,7 +220,7 @@ bool nrf_802154_core_hooks_terminate(nrf_802154_term_t term_lvl, req_originator_
 }
 
 bool nrf_802154_core_hooks_pre_transmission(
-    const uint8_t                           * p_frame,
+    uint8_t                                 * p_frame,
     nrf_802154_transmit_params_t            * p_params,
     nrf_802154_transmit_failed_notification_t notify_function)
 {
@@ -233,6 +245,32 @@ bool nrf_802154_core_hooks_pre_transmission(
     return result;
 }
 
+bool nrf_802154_core_hooks_tx_setup(
+    uint8_t                                 * p_frame,
+    nrf_802154_transmit_params_t            * p_params,
+    nrf_802154_transmit_failed_notification_t notify_function)
+{
+    bool result = true;
+
+    for (uint32_t i = 0; i < sizeof(m_tx_setup_hooks) / sizeof(m_tx_setup_hooks[0]);
+         i++)
+    {
+        if (m_tx_setup_hooks[i] == NULL)
+        {
+            break;
+        }
+
+        result = m_tx_setup_hooks[i](p_frame, p_params, notify_function);
+
+        if (!result)
+        {
+            break;
+        }
+    }
+
+    return result;
+}
+
 void nrf_802154_core_hooks_transmitted(const uint8_t * p_frame)
 {
     for (uint32_t i = 0; i < sizeof(m_transmitted_hooks) / sizeof(m_transmitted_hooks[0]); i++)
@@ -246,7 +284,7 @@ void nrf_802154_core_hooks_transmitted(const uint8_t * p_frame)
     }
 }
 
-bool nrf_802154_core_hooks_tx_failed(const uint8_t * p_frame, nrf_802154_tx_error_t error)
+bool nrf_802154_core_hooks_tx_failed(uint8_t * p_frame, nrf_802154_tx_error_t error)
 {
     bool result = true;
 
@@ -268,7 +306,7 @@ bool nrf_802154_core_hooks_tx_failed(const uint8_t * p_frame, nrf_802154_tx_erro
     return result;
 }
 
-bool nrf_802154_core_hooks_tx_started(const uint8_t * p_frame)
+bool nrf_802154_core_hooks_tx_started(uint8_t * p_frame)
 {
     bool result = true;
 
@@ -317,7 +355,7 @@ void nrf_802154_core_hooks_rx_ack_started(void)
     }
 }
 
-void nrf_802154_core_hooks_tx_ack_started(const uint8_t * p_ack)
+void nrf_802154_core_hooks_tx_ack_started(uint8_t * p_ack)
 {
     for (uint32_t i = 0; i < sizeof(m_tx_ack_started_hooks) / sizeof(m_tx_ack_started_hooks[0]);
          i++)
